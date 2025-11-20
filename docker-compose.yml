@@ -79,7 +79,7 @@ services:
       DB_USER: SITH
       DB_PASS: SITH
       MQTT_HOST: SITH-MQTT-Broker
-      MQTT_PORT: 6683
+      MQTT_PORT: 1883
       POLL_INTERVAL_SECONDS: 5
     volumes:
       - SITH-db_publisher_data:/app
