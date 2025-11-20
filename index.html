@@ -1,0 +1,222 @@
+<?php
+
+// --- SITH Configuration and Simulated Data ---
+
+$system_name = "SITH Telemetry Core";
+$last_update = date("Y-m-d H:i:s");
+
+// Simulate main system metrics (would normally come from an actual sensor/database)
+$metrics = [
+    'cpu_load_percent' => rand(15, 95),
+    'memory_usage_gb' => rand(2, 12) / 10,
+    'uptime_days' => rand(30, 150) / 10,
+    'network_latency_ms' => rand(5, 50),
+];
+
+// Simulate critical component status
+$components = [
+    'Integration Bus A' => ['status' => 'Operational', 'color' => 'green', 'message' => 'All nodes connected and stable.'],
+    'Database Cluster B' => ['status' => 'Degraded', 'color' => 'yellow', 'message' => 'High read latency detected on replica 3.'],
+    'Telemetry Collector C' => ['status' => 'Failure', 'color' => 'red', 'message' => 'Agent unresponsive since last heartbeat.'],
+    'Alert Engine D' => ['status' => 'Operational', 'color' => 'green', 'message' => 'Monitoring rules active and firing normally.'],
+    'API Gateway E' => ['status' => 'Maintenance', 'color' => 'blue', 'message' => 'Scheduled update underway, traffic rerouted.'],
+];
+
+/**
+ * Maps a status color name to Tailwind CSS classes.
+ * @param string $color The defined color (e.g., 'green', 'yellow').
+ * @return string The Tailwind class for the badge.
+ */
+function get_status_badge_class($color) {
+    switch ($color) {
+        case 'green':
+            return 'bg-green-600/20 text-green-400 ring-green-500/10';
+        case 'yellow':
+            return 'bg-yellow-600/20 text-yellow-400 ring-yellow-500/10';
+        case 'red':
+            return 'bg-red-600/20 text-red-400 ring-red-500/10';
+        case 'blue':
+            return 'bg-blue-600/20 text-blue-400 ring-blue-500/10';
+        default:
+            return 'bg-gray-600/20 text-gray-400 ring-gray-500/10';
+    }
+}
+
+// Function to determine overall system health
+function get_overall_health($components) {
+    $statuses = array_column($components, 'status');
+    if (in_array('Failure', $statuses)) return ['status' => 'Critical', 'icon' => '🔥'];
+    if (in_array('Degraded', $statuses) || in_array('Maintenance', $statuses)) return ['status' => 'Warning', 'icon' => '⚠️'];
+    return ['status' => 'Nominal', 'icon' => '✅'];
+}
+
+$health = get_overall_health($components);
+
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?php echo $system_name; ?> Dashboard</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom font import for a tech/console feel */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar for dark theme */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'sith-dark': '#0f172a',
+                        'sith-panel': '#1e293b',
+                        'sith-accent': '#f97316', /* Orange accent */
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-sith-dark min-h-screen text-gray-100 p-4 sm:p-8">
+
+    <!-- Header and Overall Status -->
+    <header class="mb-8 border-b border-gray-700 pb-4">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+            <h1 class="text-3xl font-bold text-white tracking-wider">
+                <?php echo $system_name; ?>
+            </h1>
+            <div class="mt-3 sm:mt-0 flex items-center space-x-4">
+                <span class="text-sm text-gray-400">
+                    Last Update: <?php echo $last_update; ?>
+                </span>
+                <span class="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ring-1 ring-inset <?php echo get_status_badge_class($health['status'] == 'Nominal' ? 'green' : ($health['status'] == 'Warning' ? 'yellow' : 'red')); ?>">
+                    <?php echo $health['icon']; ?> <?php echo $health['status']; ?>
+                </span>
+            </div>
+        </div>
+        <p class="text-gray-400 text-sm mt-1">Systems Integration & Telemetry Handler (SITH) - Central Monitoring Console</p>
+    </header>
+
+    <!-- Main Dashboard Grid -->
+    <main class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+        <!-- Column 1: Core Metrics Panel (Span 3) -->
+        <div class="lg:col-span-3">
+            <h2 class="text-xl font-semibold mb-4 text-sith-accent border-l-4 border-sith-accent pl-3">CORE SYSTEM METRICS</h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+
+                <!-- Metric Card Template -->
+                <?php
+                $metric_data = [
+                    ['label' => 'CPU Load', 'value' => $metrics['cpu_load_percent'] . '%', 'color' => $metrics['cpu_load_percent'] > 80 ? 'red-400' : 'green-400', 'icon' => '⚡'],
+                    ['label' => 'Memory Used', 'value' => $metrics['memory_usage_gb'] . ' GB', 'color' => $metrics['memory_usage_gb'] > 1.0 ? 'yellow-400' : 'blue-400', 'icon' => '💾'],
+                    ['label' => 'Uptime', 'value' => $metrics['uptime_days'] . ' Days', 'color' => 'white', 'icon' => '⏳'],
+                    ['label' => 'Net Latency', 'value' => $metrics['network_latency_ms'] . ' ms', 'color' => $metrics['network_latency_ms'] > 30 ? 'red-400' : 'green-400', 'icon' => '📡'],
+                ];
+                foreach ($metric_data as $metric) {
+                    echo '
+                    <div class="bg-sith-panel p-6 rounded-lg shadow-xl hover:shadow-2xl transition duration-300 transform hover:scale-[1.02] border border-gray-700">
+                        <div class="text-3xl mb-2">' . $metric['icon'] . '</div>
+                        <p class="text-sm font-medium text-gray-400 uppercase tracking-wider mb-1">' . $metric['label'] . '</p>
+                        <p class="text-4xl font-extrabold text-' . $metric['color'] . '">' . $metric['value'] . '</p>
+                    </div>';
+                }
+                ?>
+                <!-- End Metric Card Template -->
+
+            </div>
+
+            <!-- Detailed Component Status Table -->
+            <div class="mt-8">
+                <h2 class="text-xl font-semibold mb-4 text-sith-accent border-l-4 border-sith-accent pl-3">COMPONENT INTEGRATION STATUS</h2>
+                <div class="bg-sith-panel rounded-lg shadow-xl overflow-hidden border border-gray-700">
+                    <table class="min-w-full divide-y divide-gray-700">
+                        <thead class="bg-gray-800">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                    Component Name
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider hidden sm:table-cell">
+                                    Status
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                    Details
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-800">
+                            <?php foreach ($components as $name => $data): ?>
+                                <tr class="hover:bg-gray-800 transition duration-150">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                                        <?php echo $name; ?>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm hidden sm:table-cell">
+                                        <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset <?php echo get_status_badge_class($data['color']); ?>">
+                                            <?php echo $data['status']; ?>
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-400 max-w-xs truncate">
+                                        <?php echo $data['message']; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Column 2: Quick Actions & Log (Span 1) -->
+        <div class="lg:col-span-1">
+            <h2 class="text-xl font-semibold mb-4 text-sith-accent border-l-4 border-sith-accent pl-3">QUICK ACTIONS</h2>
+
+            <!-- Quick Actions Panel -->
+            <div class="bg-sith-panel p-6 rounded-lg shadow-xl mb-6 border border-gray-700 space-y-3">
+                <button onclick="console.log('Restarting Telemetry Collector...')" class="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition duration-150 shadow-md transform hover:-translate-y-0.5">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.356-2a8.001 8.001 0 0015.356 2m0 0H15"></path></svg>
+                    <span>Force Restart Collector</span>
+                </button>
+                <button onclick="console.log('Deploying hotfix to Integration Bus...')" class="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition duration-150 shadow-md transform hover:-translate-y-0.5">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-2a3 3 0 00-3-3h-3a2 2 0 01-2-2v-3a1 1 0 00-1-1H7.5a1.5 1.5 0 000 3h2.25l-.325 1.765H7a1.5 1.5 0 00-1.5 1.5v2c0 .712.3 1.353.784 1.813A2.492 2.492 0 007.5 14"></path></svg>
+                    <span>Deploy Hotfix</span>
+                </button>
+                <button onclick="console.log('Generating full system diagnostic report...')" class="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg transition duration-150 shadow-md transform hover:-translate-y-0.5">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    <span>Full Diagnostic Report</span>
+                </button>
+            </div>
+
+            <h2 class="text-xl font-semibold mb-4 text-sith-accent border-l-4 border-sith-accent pl-3">RECENT LOGS</h2>
+            <!-- Simulated Log Console -->
+            <div class="bg-black/50 p-4 rounded-lg shadow-inner border border-gray-700 h-64 overflow-y-auto text-xs space-y-1">
+                <p class="text-red-500">[<?php echo date("H:i:s", strtotime("-5 minutes")); ?>] ERROR: Component C: Heartbeat timeout. Restarting attempt 1...</p>
+                <p class="text-yellow-400">[<?php echo date("H:i:s", strtotime("-10 minutes")); ?>] WARNING: Database B: Average read latency is 35ms (>30ms threshold).</p>
+                <p class="text-green-500">[<?php echo date("H:i:s", strtotime("-15 minutes")); ?>] INFO: Integration Bus A: Successfully processed batch job #9382.</p>
+                <p class="text-gray-400">[<?php echo date("H:i:s", strtotime("-20 minutes")); ?>] AUDIT: User 'admin' logged in via console interface.</p>
+                <p class="text-blue-400">[<?php echo date("H:i:s", strtotime("-30 minutes")); ?>] SYSTEM: API Gateway E maintenance initiated. Traffic shifted.</p>
+                <p class="text-green-500">[<?php echo date("H:i:s", strtotime("-45 minutes")); ?>] INFO: Telemetry ingestion rate stabilized at 1200 records/sec.</p>
+                <p class="text-red-500">[<?php echo date("H:i:s", strtotime("-1 hour")); ?>] CRITICAL: System health dropped to Warning due to high latency.</p>
+                <p class="text-yellow-400">[<?php echo date("H:i:s", strtotime("-1.5 hours")); ?>] WARNING: CPU load briefly spiked to 98% during data migration phase.</p>
+                <p class="text-green-500">[<?php echo date("H:i:s", strtotime("-2 hours")); ?>] INFO: Alert Engine D sync completed with zero conflicts.</p>
+                <p class="text-gray-400">[<?php echo date("H:i:s", strtotime("-3 hours")); ?>] AUDIT: Component E configuration pushed successfully.</p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-8 pt-4 border-t border-gray-700 text-center text-sm text-gray-500">
+        &copy; <?php echo date("Y"); ?> SITH Project | All telemetry data simulated for display purposes.
+    </footer>
+
+</body>
+</html>
