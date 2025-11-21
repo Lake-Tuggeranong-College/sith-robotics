@@ -86,11 +86,33 @@ services:
     networks:
       - public
 
-    
+# 🆕 NEW SERVICE: MQTT Subscriber and Database Writer
+  mqtt_subscriber:
+    build: 
+      context: ./mqtt_subscriber_app # You will need to create this directory
+      dockerfile: Dockerfile
+    container_name: SITH-MQTT-Subscriber
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+      - mysql
+    environment:
+      # MQTT Connection Details
+      MQTT_HOST: SITH-MQTT-Broker
+      MQTT_PORT: 1883
+      MQTT_TOPIC: sensor/+/data # Example topic to subscribe to all sensor data
+      # Database Connection Details
+      DB_HOST: SITH-MySQL
+      DB_NAME: SITH
+      DB_USER: SITH
+      DB_PASS: SITH
+    networks:
+      - public
 
 volumes:
   SITH-mysql-data:
   SITH-db_publisher_data:
+  SITH-mqtt_subscriber_data:
 
 networks:
   public:
