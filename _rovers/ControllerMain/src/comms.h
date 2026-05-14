@@ -175,7 +175,7 @@ String waitForReply() {
   if (DEBUG) {
     Serial.println("Waiting for reply...");
   }
-  if (rf95.waitAvailableTimeout(100)) {  // Wait up to 1 second
+  if (rf95.waitAvailableTimeout(200)) {  // Wait up to 1 second
     if (rf95.recv(buf, &len)) {
       if (DEBUG) {
         Serial.print("Got reply: ");

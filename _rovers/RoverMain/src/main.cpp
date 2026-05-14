@@ -226,6 +226,7 @@ void loop() {
   unsigned long elapsedTime = currentTime - startTime;
 
   String command = waitForReply();
+  String shortReply;
   if (DEBUG) {
     Serial.println(command);
   }
@@ -270,10 +271,12 @@ void loop() {
   }
 
 
-
-  
+  shortReply = waitForReplyShort();
+  if (shortReply == String(ROVER_ID) + ",Ping Devices"){
+    transmitData("Rover", ROVER_ID);
+  }
 
   
   // transmitTemperature();
-  delay(10);
+  delay(90);
 }
