@@ -119,6 +119,8 @@ void transmitStopCommand(){
     for (int i = 0; i <= 2; i++){ 
     //transmitData("stop", ROVER_ID);
     transmitData("stop", String(currentRoverID).c_str());
+    delay(20);
+    transmitData("stop", String(currentRoverID).c_str());
   }
     hasSentStop = true;
     return;
