@@ -119,6 +119,8 @@ void transmitStopCommand(){
     for (int i = 0; i <= 2; i++){ 
     //transmitData("stop", ROVER_ID);
     transmitData("stop", String(currentRoverID).c_str());
+    delay(20);
+    transmitData("stop", String(currentRoverID).c_str());
   }
     hasSentStop = true;
     return;
@@ -312,17 +314,25 @@ void receiverMenuLogic(){
 }
 
 void pingMenuLogic(){
+  String reply;
   tft->setCursor(0, 0);
   tft->setTextSize(1);
-  transmitData("Ping Devices", ROVER_ID);
-  delay(10);
-  String reply = waitForReply();
+  for (int i = 0; i < 3; i++) {
+    transmitData("Ping Devices", ROVER_ID);
+    reply = waitForReply();
+    if(reply != "No Reply"){
+      break;
+    }
+    delay(200);
+  }
   if(reply != "No Reply"){
     tft->print("A Device pinged back!");
+    tft->print(reply);
   } else{
     tft->print("No devices in range");
   }
   delay(2000);
+  tft->fillScreen(ST77XX_BLACK);
   currentMenu = "mainMenu";
 }
 
