@@ -42,9 +42,6 @@ String currentMenu = "mainMenu";
 
 #include "comms.h"
 int currentRoverID = 1; //This is a debug command; remove if its not working.
-bool showID = false; // same with all these
-unsigned long idDisplayStart = 0;
-const int idDisplayDuration = 700; // ms (adjust to taste)
 
 void initialiseTFT() {
   if (!ss.begin()) {
@@ -207,15 +204,13 @@ void buttonTransmit() {
   color = ST77XX_BLACK;
   if (!(buttons & TFTWING_BUTTON_SELECT)) {
     // Serial.println("SELECT");
-    currentRoverID++;
-    if (currentRoverID > 5) currentRoverID = 1;
-    color = ST77XX_RED;
-    //transmitData("IDCycle", ROVER_ID);
-    transmitData("IDCycle", String(currentRoverID).c_str());
-    hasSentStop = false;
-    showID = true;
-    idDisplayStart = millis();
-    delay(300);
+    // currentRoverID++;
+    // if (currentRoverID > 5) currentRoverID = 1;
+    // color = ST77XX_RED;
+    // //transmitData("IDCycle", ROVER_ID);
+    // transmitData("IDCycle", String(currentRoverID).c_str());
+    // hasSentStop = false;
+    // delay(300);
 
 
   }
@@ -223,6 +218,18 @@ void buttonTransmit() {
   tft->fillCircle(135, 40, 7, color);
   waitForReply();
   
+}
+
+void handleIDDisplay() {
+  if (currentMenu == "checkID") {
+    // Draw small background (same size vibe as your circles)
+    tft->fillRect(70, 20, 60, 80, ST77XX_BLACK);
+
+    tft->setCursor(80, 32);
+    tft->setTextColor(ST77XX_WHITE);
+    tft->setTextSize(5);
+    tft->print(currentRoverID);
+  }
 }
 
 #define ITEMS_PER_PAGE 3
@@ -284,7 +291,7 @@ void mainMenuLogic(){
       case 1: currentMenu = "pingMenu"; tft->fillScreen(ST77XX_BLACK); break;              // Exit menu
       case 2: currentMenu = "receiver"; tft->fillScreen(ST77XX_BLACK); break;
       // Add more cases here for options 3, 4, 5, etc.
-      // case 3: /* your code */ break;
+      case 3: currentMenu = "checkID"; tft->fillScreen(ST77XX_BLACK); break;
       // case 4: /* your code */ break;
       // case 5: /* your code */ break;
       default: break; // Safety fallback
@@ -336,6 +343,31 @@ void pingMenuLogic(){
   currentMenu = "mainMenu";
 }
 
+void checkIDMenuLogic() {
+  uint32_t buttons = ss.readButtons();
+
+  if (!(buttons & TFTWING_BUTTON_A)) {
+    currentRoverID++;
+
+    if (currentRoverID > 5) {
+      currentRoverID = 1;
+    }
+
+    tft->fillScreen(ST77XX_BLACK);
+    delay(300);
+  }
+
+
+  if (!(buttons & TFTWING_BUTTON_B)) {
+    currentMenu = "mainMenu";
+    tft->fillScreen(ST77XX_BLACK);
+
+    delay(300);
+  }
+
+  handleIDDisplay();
+}
+
 void drawMenu(){
   //Menu logic where code is ran depending on menu, such as running the driving function when driving the rover
   //Each menu would have its own function
@@ -354,26 +386,11 @@ void drawMenu(){
   if (currentMenu == "pingMenu"){
     pingMenuLogic();
   }
-  //This is the end of the main menu functionality
-}
 
-void handleIDDisplay() {
-  if (showID) {
-    // Draw small background (same size vibe as your circles)
-    tft->fillRect(70, 20, 60, 80, ST77XX_BLACK);
-
-    tft->setCursor(80, 32);
-    tft->setTextColor(ST77XX_WHITE);
-    tft->setTextSize(5);
-    tft->print(currentRoverID);
-
-    // Check timeout
-    if (millis() - idDisplayStart > idDisplayDuration) {
-      // Clear it
-      tft->fillRect(120, 5, 20, 15, ST77XX_BLACK);
-      showID = false;
-    }
+  if (currentMenu == "checkID") {
+    checkIDMenuLogic();
   }
+  //This is the end of the main menu functionality
 }
 
 // Setup function runs once at startup
