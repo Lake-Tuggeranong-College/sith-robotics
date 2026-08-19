@@ -77,39 +77,6 @@ void initialiseSerial() {
   Serial.println("Feather LoRa TX!");  // Print startup message
 }
 
-// Sends a message only when the Feather's BOOT button is pressed
-void debugTransmissionButton() {
-  pinMode(7, INPUT);               // Set pin 7 as input (BOOT button)
-  if (!digitalRead(7)) {           // Check if button is pressed
-    //transmitData("Button Press", ROVER_ID);  // Send message
-    waitForReply();                // Wait for response
-  }
-}
-
-// Sends a test message and waits for a reply
-// Useful for basic transmission debugging
-void debugTransmissionSimple() {
-  transmitData("Ryan", ROVER_ID);  // Send test message
-  waitForReply();        // Wait for response
-}
-
-void cycleBasicCommands() {
-  transmitData("test", ROVER_ID);
-  waitForReply();
-  transmitData("forward", ROVER_ID);
-  waitForReply();
-  transmitData("backward", ROVER_ID);
-  waitForReply();
-  transmitData("left", ROVER_ID);
-  waitForReply();
-  transmitData("right", ROVER_ID);
-  waitForReply();
-  transmitData("stop", ROVER_ID);
-  waitForReply();
-  transmitData("start", ROVER_ID);
-  waitForReply();
-}
-
 // This function will run super fast, so that it can stop as soon as you stop pressing any buttons
 // The movement function will run slower as to not spam the lora network
 void transmitStopCommand(){
@@ -221,7 +188,6 @@ void buttonTransmit() {
   }
 
   tft->fillCircle(135, 40, 7, color);
-  waitForReply();
   
 }
 
@@ -299,7 +265,7 @@ void receiverMenuLogic(){
   tft->setCursor(0, 0);
   tft->setTextSize(1);
 
-  String reply = waitForReply();
+  String reply = checkForMessage();
   if(reply != "No Reply"){
     tft->fillScreen(ST77XX_BLACK);
     tft->print(reply);
@@ -319,7 +285,7 @@ void pingMenuLogic(){
   tft->setTextSize(1);
   for (int i = 0; i < 3; i++) {
     transmitData("Ping Devices", ROVER_ID);
-    reply = waitForReply();
+    reply = checkForMessage();
     if(reply != "No Reply"){
       break;
     }
@@ -436,10 +402,10 @@ void loop() {
   // debugTransmissionButton();    // Send message when button is pressed
   // cycleBasicCommands();
   
-  shortReply = waitForReplyShort();
+  shortReply = checkForMessage();
   if (shortReply == String(ROVER_ID) + ",Ping Devices"){
     transmitData("Controller", ROVER_ID);
   }
   drawMenu();
-  delay(90);
+  delay(50);
 }
