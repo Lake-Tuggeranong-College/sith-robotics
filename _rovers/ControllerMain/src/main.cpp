@@ -388,6 +388,7 @@ void setup() {
   setRadioPower();      // Set transmission power
   initialiseTFT();
   pinMode(LED_BUILTIN, OUTPUT);  // Set built-in LED pin as output
+  Serial1.begin(115200);
 
   tft->fillScreen(ST77XX_RED);
   delay(100);
@@ -411,6 +412,7 @@ void setup() {
   tft->fillScreen(ST77XX_BLACK);
   tft->setCursor(0, 0);
   tft->setTextSize(2);
+  Serial1.println("Feather LoRa TX!");
 }
 
 
