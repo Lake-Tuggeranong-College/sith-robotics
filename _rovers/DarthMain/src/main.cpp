@@ -34,6 +34,9 @@ Adafruit_ST77xx *tft = NULL;
 
 #include "comms.h"
 
+String cachedMessage = "";
+int cachedRssi = 0;
+
 void initialiseTFT() {
   if (!ss.begin()) {
     if (DEBUG) {
@@ -55,6 +58,13 @@ void initialiseTFT() {
   }
 }
 
+void displayMessages(){
+  if(cachedMessage != ""){
+    tft->fillScreen(ST77XX_BLACK);
+    tft->print(cachedMessage);
+    tft->println(rf95.lastRssi(), DEC);
+  }
+}
 
 // Initialises the Serial Monitor
 // Waits for Serial to be ready before continuing
@@ -102,11 +112,15 @@ void setup() {
   tft->fillScreen(ST77XX_BLACK);
   tft->setCursor(0, 0);
   tft->setTextSize(2);
+  transmitData("Server is active!!!", "SERVER");
 }
 
 
 // Main loop runs repeatedly after setup
 void loop() {
+  cachedMessage = waitForReply();
+  cachedRssi = rf95.lastRssi();
+
   if (Serial1.available() > 0) {
     
     // Read the incoming line up to the '\n' character
@@ -120,14 +134,8 @@ void loop() {
     tft->print(receivedMessage);
     transmitData(receivedMessage.c_str(), "SERVER");
 
-  String reply = waitForReplyShort();
+  displayMessages();
   
-  if (reply != "No Reply"){
-    tft->fillScreen(ST77XX_BLACK);
-    tft->print(reply);
-    tft->println(rf95.lastRssi(), DEC);
-  }
-  
-  delay(16);
+  delay(100);
   }
 }

@@ -40,6 +40,12 @@ bool hasSentStop = false;
 int selectedOption = 0;
 String currentMenu = "mainMenu";
 
+String cachedMessage = "";
+int cachedRssi = 0;
+// Messages in lora are one time use, once it returns the buffer is cleared and returns empty if called again
+// This causes issues when doing multiple sequential reads of a single lora packet
+// We cache the message so multiple functions in code can read it
+
 #include "comms.h"
 int currentRoverID = 1; //This is a debug command; remove if its not working.
 bool showID = false; // same with all these
@@ -265,10 +271,9 @@ void receiverMenuLogic(){
   tft->setCursor(0, 0);
   tft->setTextSize(1);
 
-  String reply = checkForMessage();
-  if(reply != "No Reply"){
+  if(cachedMessage != ""){
     tft->fillScreen(ST77XX_BLACK);
-    tft->print(reply);
+    tft->print(cachedMessage);
     tft->println(rf95.lastRssi(), DEC);
   }
   
@@ -280,20 +285,18 @@ void receiverMenuLogic(){
 }
 
 void pingMenuLogic(){
-  String reply;
   tft->setCursor(0, 0);
   tft->setTextSize(1);
   for (int i = 0; i < 3; i++) {
     transmitData("Ping Devices", ROVER_ID);
-    reply = checkForMessage();
-    if(reply != "No Reply"){
+    if(cachedMessage != ""){
       break;
     }
     delay(200);
   }
-  if(reply != "No Reply"){
+  if(cachedMessage != ""){
     tft->print("A Device pinged back!");
-    tft->print(reply);
+    tft->print(cachedMessage);
   } else{
     tft->print("No devices in range");
   }
@@ -305,9 +308,15 @@ void pingMenuLogic(){
 void drawMenu(){
   //Menu logic where code is ran depending on menu, such as running the driving function when driving the rover
   //Each menu would have its own function
+  unsigned long currentTime = millis();
+  unsigned long elapsedTime = currentTime - startTime;
   if (currentMenu == "driving"){
-    buttonTransmit();
-  } 
+    if (elapsedTime >= 300){
+      buttonTransmit();
+      startTime = currentTime; 
+    }
+    transmitStopCommand();
+  }
   
   if (currentMenu == "mainMenu"){
     mainMenuLogic();
@@ -340,6 +349,13 @@ void handleIDDisplay() {
       showID = false;
     }
   }
+}
+
+void checkForPings(){
+  if (cachedMessage == String(ROVER_ID) + ",Ping Devices"){
+    transmitData("Controller", ROVER_ID);
+  }
+
 }
 
 // Setup function runs once at startup
@@ -384,17 +400,8 @@ void setup() {
 
 // Main loop runs repeatedly after setup
 void loop() {
-  String shortReply;
-  unsigned long currentTime = millis();
-  unsigned long elapsedTime = currentTime - startTime;
-  if (currentMenu == "driving"){
-    if (elapsedTime >= 300){
-      buttonTransmit();
-      startTime = currentTime; 
-    }
-    transmitStopCommand();
-  }
-  
+  cachedMessage = waitForReply();
+  cachedRssi = rf95.lastRssi();
 
   // Uncomment one of the following for debugging transmission
 
@@ -402,10 +409,8 @@ void loop() {
   // debugTransmissionButton();    // Send message when button is pressed
   // cycleBasicCommands();
   
-  shortReply = checkForMessage();
-  if (shortReply == String(ROVER_ID) + ",Ping Devices"){
-    transmitData("Controller", ROVER_ID);
-  }
+
   drawMenu();
-  delay(50);
+  checkForPings();
+  delay(100);
 }

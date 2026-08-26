@@ -16,7 +16,7 @@ RH_RF95 rf95(RFM95_CS, RFM95_INT);
 volatile bool packetReceived = false;
 
 // Interrupt Service Routine - runs immediately when DIO0 goes high
-void IRAM_ATTR onLoraPacket() {
+void onLoraPacket() {
   packetReceived = true;
 }
 
@@ -78,7 +78,7 @@ String checkForMessage() {
 String waitForReply() {
   String msg = checkForMessage();
   if (msg.length() > 0) return msg;
-  return "No Reply";
+  return "";
 }
 
 // Short timeout version - now also non-blocking for seamless integration
