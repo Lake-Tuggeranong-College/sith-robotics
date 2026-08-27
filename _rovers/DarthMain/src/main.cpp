@@ -60,6 +60,8 @@ void initialiseTFT() {
 
 void displayMessages(){
   if(cachedMessage != ""){
+    tft->setCursor(0, 0);
+    tft->setTextSize(1);
     tft->fillScreen(ST77XX_BLACK);
     tft->print(cachedMessage);
     tft->println(rf95.lastRssi(), DEC);
@@ -133,9 +135,8 @@ void loop() {
     tft->fillScreen(ST77XX_BLACK);
     tft->print(receivedMessage);
     transmitData(receivedMessage.c_str(), "SERVER");
-
+  }
   displayMessages();
   
   delay(100);
-  }
 }

@@ -212,10 +212,10 @@ void setup() {
   pixels.setBrightness(100);  // Set brightness (0-255)
 
   //set speed of motors once, this could be variable to add configurable speed
-  motorLeft->setSpeed(150);
-  motorRight->setSpeed(150);
-  motorBackLeft->setSpeed(150); 
-  motorBackRight->setSpeed(150); 
+  motorLeft->setSpeed(200);
+  motorRight->setSpeed(200);
+  motorBackLeft->setSpeed(200); 
+  motorBackRight->setSpeed(200); 
 
   startTime = millis();
 }
@@ -223,6 +223,7 @@ void setup() {
 
 
 void loop() {
+  cachedMessage = waitForReply();
   // readGPS();
   // transmitData("test");
   unsigned long currentTime = millis();
@@ -261,7 +262,7 @@ void loop() {
     startTime = currentTime; 
   }
     // This is suppose to stop the rover if nothing has been recieved for 1 seconds, all checks should fail meaning no valid command up until this point
-  else if (elapsedTime >= 1000){
+  else if (elapsedTime >= 5000){
     commandStop();
     startTime = currentTime; 
   }
@@ -279,5 +280,5 @@ void loop() {
 
   
   // transmitTemperature();
-  delay(90);
+  delay(100);
 }
