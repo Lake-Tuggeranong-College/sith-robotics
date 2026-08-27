@@ -23,6 +23,9 @@ const char *ROVER_ID = "1";
 
 #include <Wire.h>
 #include "Adafruit_ADT7410.h"
+#include <Adafruit_GFX.h>
+#include <Adafruit_ST7735.h>
+#include "Adafruit_miniTFTWing.h"
 
 // Create the ADT7410 temperature sensor object
 Adafruit_ADT7410 tempsensor = Adafruit_ADT7410();
@@ -38,7 +41,12 @@ Adafruit_ADT7410 tempsensor = Adafruit_ADT7410();
 // For use with the onboard Neopixel (RGB LED)
 #include <Adafruit_NeoPixel.h>
 Adafruit_NeoPixel pixels(1, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
-
+Adafruit_miniTFTWing ss;
+#define TFT_RST -1  // we use the seesaw for resetting to save a pin
+#define TFT_CS 5
+#define TFT_DC 6
+Adafruit_ST7735 tft_7735 = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
+Adafruit_ST77xx *tft = NULL;
 #include <Adafruit_MotorShield.h>
 Adafruit_MotorShield AFMS = Adafruit_MotorShield();
 // Select which 'port' M1, M2, M3 or M4. In this case, M1
@@ -57,6 +65,7 @@ String stop_command = String(ROVER_ID) + ",stop";
 String beep_command = String(ROVER_ID) + ",beep";
 String backward_command = String(ROVER_ID) + ",backward";
 
+int currentRoverID = 1;
 unsigned long startTime;
 
 void initialiseTemperatureMotionWing() {
@@ -120,6 +129,28 @@ void transmitTemperature() {
 
   transmitData(packetToTx, ROVER_ID);  // UPDATED CALL
 }
+
+void initialiseTFT() {
+  if (!ss.begin()) {
+    if (DEBUG) {
+      Serial.println("seesaw couldn't be found!");
+    }
+    while (1)
+      ;
+  }
+
+  ss.tftReset();                          // reset the display
+  ss.setBacklight(TFTWING_BACKLIGHT_ON);  // turn off the backlight
+  tft_7735.initR(INITR_MINI160x80);       // initialize a ST7735S chip, mini display
+  tft = &tft_7735;
+  tft->setRotation(3);
+    tft->fillScreen(ST77XX_BLACK);
+
+  if (DEBUG) {
+    Serial.println("TFT initialized");
+  }
+}
+
 
 void commandTest() {
   if (DEBUG) {
@@ -188,6 +219,101 @@ void commandBeep() {
   noTone(buzzer);      // Stop sound...
 }
 
+void buttonTransmit() {
+  uint32_t buttons = ss.readButtons();
+
+  uint16_t color;
+
+
+  // 3740 is the value that is printed when no buttons are pressed, the number is changed when buttons are pressed.
+  // not sure exactly what the number means yet, to be investigated
+
+  color = ST77XX_BLACK;
+  if (!(buttons & TFTWING_BUTTON_LEFT)) {
+    // Serial.println("LEFT");
+    color = ST77XX_WHITE;
+    //transmitData("left", ROVER_ID);
+    
+    
+  }
+
+  tft->fillTriangle(150, 30, 150, 50, 160, 40, color);
+
+
+  color = ST77XX_BLACK;
+  if (!(buttons & TFTWING_BUTTON_RIGHT)) {
+    // Serial.println("RIGHT");
+    color = ST77XX_WHITE;
+    //transmitData("right", ROVER_ID);
+    
+    
+  }
+
+  tft->fillTriangle(120, 30, 120, 50, 110, 40, color);
+
+
+  color = ST77XX_BLACK;
+  if (!(buttons & TFTWING_BUTTON_DOWN)) {
+    // Serial.println("DOWN");
+    color = ST77XX_WHITE;
+    //transmitData("backward", ROVER_ID);
+    
+    
+  }
+
+  tft->fillTriangle(125, 26, 145, 26, 135, 16, color);
+
+
+  color = ST77XX_BLACK;
+  if (!(buttons & TFTWING_BUTTON_UP)) {
+    // Serial.println("UP");
+    color = ST77XX_WHITE;
+    //transmitData("forward", ROVER_ID);
+    
+    
+  }
+
+  tft->fillTriangle(125, 53, 145, 53, 135, 63, color);
+
+
+  color = ST77XX_BLACK;
+  if (!(buttons & TFTWING_BUTTON_A)) {
+    // Serial.println("A");
+    color = ST7735_GREEN;
+    //transmitData("beep", ROVER_ID);
+    
+    
+  }
+
+  tft->fillCircle(30, 57, 10, color);
+
+
+  color = ST77XX_BLACK;
+  if (!(buttons & TFTWING_BUTTON_B)) {
+    // Serial.println("B");
+    
+  }
+
+
+  color = ST77XX_BLACK;
+  if (!(buttons & TFTWING_BUTTON_SELECT)) {
+    Serial.println("SELECT");
+    Serial.println(currentRoverID);
+    currentRoverID++;
+    if (currentRoverID > 5) currentRoverID = 1;
+    // color = ST77XX_RED;
+    // //transmitData("IDCycle", ROVER_ID);
+    // transmitData("IDCycle", String(currentRoverID).c_str());
+    // hasSentStop = false;
+    delay(300);
+
+
+  }
+
+  tft->fillCircle(135, 40, 7, color);
+  waitForReply();
+  
+}
 
 void setup() {
   initialiseLoraPins();
@@ -196,6 +322,7 @@ void setup() {
   }
   resetRadio();
   initialiseRadio();
+  initialiseTFT();
   setRadioFrequency();
   setRadioPower();
   initialiseMotorShield();
@@ -224,7 +351,7 @@ void loop() {
   // transmitData("test");
   unsigned long currentTime = millis();
   unsigned long elapsedTime = currentTime - startTime;
-
+  buttonTransmit();
   String command = waitForReply();
   String shortReply;
   if (DEBUG) {
