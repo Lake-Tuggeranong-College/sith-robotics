@@ -40,6 +40,12 @@ bool hasSentStop = false;
 int selectedOption = 0;
 String currentMenu = "mainMenu";
 
+String cachedMessage = "";
+int cachedRssi = 0;
+// Messages in lora are one time use, once it returns the buffer is cleared and returns empty if called again
+// This causes issues when doing multiple sequential reads of a single lora packet
+// We cache the message so multiple functions in code can read it
+
 #include "comms.h"
 int currentRoverID = 1; //This is a debug command; remove if its not working.
 bool showID = false; // same with all these
@@ -75,39 +81,6 @@ void initialiseSerial() {
   while (!Serial) delay(1);            // Wait for Serial to be ready
   delay(100);                          // Short delay for stability
   Serial.println("Feather LoRa TX!");  // Print startup message
-}
-
-// Sends a message only when the Feather's BOOT button is pressed
-void debugTransmissionButton() {
-  pinMode(7, INPUT);               // Set pin 7 as input (BOOT button)
-  if (!digitalRead(7)) {           // Check if button is pressed
-    //transmitData("Button Press", ROVER_ID);  // Send message
-    waitForReply();                // Wait for response
-  }
-}
-
-// Sends a test message and waits for a reply
-// Useful for basic transmission debugging
-void debugTransmissionSimple() {
-  transmitData("Ryan", ROVER_ID);  // Send test message
-  waitForReply();        // Wait for response
-}
-
-void cycleBasicCommands() {
-  transmitData("test", ROVER_ID);
-  waitForReply();
-  transmitData("forward", ROVER_ID);
-  waitForReply();
-  transmitData("backward", ROVER_ID);
-  waitForReply();
-  transmitData("left", ROVER_ID);
-  waitForReply();
-  transmitData("right", ROVER_ID);
-  waitForReply();
-  transmitData("stop", ROVER_ID);
-  waitForReply();
-  transmitData("start", ROVER_ID);
-  waitForReply();
 }
 
 // This function will run super fast, so that it can stop as soon as you stop pressing any buttons
@@ -221,7 +194,6 @@ void buttonTransmit() {
   }
 
   tft->fillCircle(135, 40, 7, color);
-  waitForReply();
   
 }
 
@@ -299,10 +271,9 @@ void receiverMenuLogic(){
   tft->setCursor(0, 0);
   tft->setTextSize(1);
 
-  String reply = waitForReply();
-  if(reply != "No Reply"){
+  if(cachedMessage != ""){
     tft->fillScreen(ST77XX_BLACK);
-    tft->print(reply);
+    tft->print(cachedMessage);
     tft->println(rf95.lastRssi(), DEC);
   }
   
@@ -314,20 +285,18 @@ void receiverMenuLogic(){
 }
 
 void pingMenuLogic(){
-  String reply;
   tft->setCursor(0, 0);
   tft->setTextSize(1);
   for (int i = 0; i < 3; i++) {
     transmitData("Ping Devices", ROVER_ID);
-    reply = waitForReply();
-    if(reply != "No Reply"){
+    if(cachedMessage != ""){
       break;
     }
     delay(200);
   }
-  if(reply != "No Reply"){
+  if(cachedMessage != ""){
     tft->print("A Device pinged back!");
-    tft->print(reply);
+    tft->print(cachedMessage);
   } else{
     tft->print("No devices in range");
   }
@@ -339,9 +308,15 @@ void pingMenuLogic(){
 void drawMenu(){
   //Menu logic where code is ran depending on menu, such as running the driving function when driving the rover
   //Each menu would have its own function
+  unsigned long currentTime = millis();
+  unsigned long elapsedTime = currentTime - startTime;
   if (currentMenu == "driving"){
-    buttonTransmit();
-  } 
+    if (elapsedTime >= 300){
+      buttonTransmit();
+      startTime = currentTime; 
+    }
+    transmitStopCommand();
+  }
   
   if (currentMenu == "mainMenu"){
     mainMenuLogic();
@@ -376,6 +351,13 @@ void handleIDDisplay() {
   }
 }
 
+void checkForPings(){
+  if (cachedMessage == String(ROVER_ID) + ",Ping Devices"){
+    transmitData("Controller", ROVER_ID);
+  }
+
+}
+
 // Setup function runs once at startup
 void setup() {
   initialiseLoraPins();  // Configure LoRa module pins
@@ -388,6 +370,7 @@ void setup() {
   setRadioPower();      // Set transmission power
   initialiseTFT();
   pinMode(LED_BUILTIN, OUTPUT);  // Set built-in LED pin as output
+  Serial1.begin(115200);
 
   tft->fillScreen(ST77XX_RED);
   delay(100);
@@ -411,22 +394,14 @@ void setup() {
   tft->fillScreen(ST77XX_BLACK);
   tft->setCursor(0, 0);
   tft->setTextSize(2);
+  Serial1.println("Feather LoRa TX!");
 }
 
 
 // Main loop runs repeatedly after setup
 void loop() {
-  String shortReply;
-  unsigned long currentTime = millis();
-  unsigned long elapsedTime = currentTime - startTime;
-  if (currentMenu == "driving"){
-    if (elapsedTime >= 300){
-      buttonTransmit();
-      startTime = currentTime; 
-    }
-    transmitStopCommand();
-  }
-  
+  cachedMessage = waitForReply();
+  cachedRssi = rf95.lastRssi();
 
   // Uncomment one of the following for debugging transmission
 
@@ -434,10 +409,8 @@ void loop() {
   // debugTransmissionButton();    // Send message when button is pressed
   // cycleBasicCommands();
   
-  shortReply = waitForReplyShort();
-  if (shortReply == String(ROVER_ID) + ",Ping Devices"){
-    transmitData("Controller", ROVER_ID);
-  }
+
   drawMenu();
-  delay(90);
+  checkForPings();
+  delay(100);
 }

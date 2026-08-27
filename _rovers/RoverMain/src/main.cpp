@@ -47,6 +47,9 @@ Adafruit_DCMotor *motorBackLeft = AFMS.getMotor(2);
 Adafruit_DCMotor *motorBackRight = AFMS.getMotor(3);
 Adafruit_DCMotor *motorRight = AFMS.getMotor(4); //testing this not final
 
+String cachedMessage = "";
+int cachedRssi = 0;
+
 // Command definitions
 String test_command = String(ROVER_ID) + ",test";
 String forward_command = String(ROVER_ID) + ",forward";
@@ -209,10 +212,10 @@ void setup() {
   pixels.setBrightness(100);  // Set brightness (0-255)
 
   //set speed of motors once, this could be variable to add configurable speed
-  motorLeft->setSpeed(150);
-  motorRight->setSpeed(150);
-  motorBackLeft->setSpeed(150); 
-  motorBackRight->setSpeed(150); 
+  motorLeft->setSpeed(200);
+  motorRight->setSpeed(200);
+  motorBackLeft->setSpeed(200); 
+  motorBackRight->setSpeed(200); 
 
   startTime = millis();
 }
@@ -220,63 +223,62 @@ void setup() {
 
 
 void loop() {
+  cachedMessage = waitForReply();
   // readGPS();
   // transmitData("test");
   unsigned long currentTime = millis();
   unsigned long elapsedTime = currentTime - startTime;
 
-  String command = waitForReply();
-  String shortReply;
   if (DEBUG) {
-    Serial.println(command);
+    Serial.println(cachedMessage);
   }
 
-  if (command == test_command) {  // UPDATED TO USE ROVER_ID
+  if (cachedMessage == test_command) {  // UPDATED TO USE ROVER_ID
     commandTest();
     startTime = currentTime; 
   }
-  else if (command == forward_command) {  // UPDATED TO USE ROVER_ID
+  else if (cachedMessage == forward_command) {  // UPDATED TO USE ROVER_ID
     commandForward();
     startTime = currentTime; 
   }
-  else if (command == right_command) {  // UPDATED TO USE ROVER_ID
+  else if (cachedMessage == right_command) {  // UPDATED TO USE ROVER_ID
     commandRight();
     startTime = currentTime; 
   }
-  else if (command == start_command) {  // UPDATED TO USE ROVER_ID
+  else if (cachedMessage == start_command) {  // UPDATED TO USE ROVER_ID
     commandStart();
     startTime = currentTime; 
   }
-  else if (command == left_command) {  // UPDATED TO USE ROVER_ID
+  else if (cachedMessage == left_command) {  // UPDATED TO USE ROVER_ID
     commandLeft();
     startTime = currentTime; 
   }
-  else if (command == beep_command) {  // UPDATED TO USE ROVER_ID
+  else if (cachedMessage == beep_command) {  // UPDATED TO USE ROVER_ID
     commandBeep();
     startTime = currentTime; 
   }
-  else if (command == backward_command) {  // UPDATED TO USE ROVER_ID
+  else if (cachedMessage == backward_command) {  // UPDATED TO USE ROVER_ID
     commandBackward();
     startTime = currentTime; 
   }
     // This is suppose to stop the rover if nothing has been recieved for 1 seconds, all checks should fail meaning no valid command up until this point
-  else if (elapsedTime >= 1000){
+  else if (elapsedTime >= 5000){
     commandStop();
     startTime = currentTime; 
   }
 
   // Always check if we need to stop as a safety measure
-  if (command == stop_command) {  
+  if (cachedMessage == stop_command) {  
     commandStop();
   }
 
 
-  shortReply = waitForReplyShort();
-  if (shortReply == String(ROVER_ID) + ",Ping Devices"){
+  
+  if (cachedMessage == String(ROVER_ID) + ",Ping Devices"){
     transmitData("Rover", ROVER_ID);
   }
 
   
   // transmitTemperature();
-  delay(90);
+  delay(100);
 }

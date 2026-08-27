@@ -1,38 +1,32 @@
 /*
-  comms.h - Communication Protocol Implementation
-  This library encapsulates the setup and usage of LoRa communication.
-  Include it in your main .ino file near the top:
-
-    #include "comms.h"
-
-  DO NOT MODIFY UNLESS INSTRUCTED TO.
-
-  Version: 1.0
-  Author: Ryan Cather
+  comms.h - Non-Blocking Communication Protocol Implementation
+  Version: 2.0 (Non-Blocking)
 */
 
-#include <RH_RF95.h>  // Include RadioHead LoRa driver
-
-// Pin definitions for various Feather boards
-// Boards with built-in radios are listed first; FeatherWing setups follow
+#include <RH_RF95.h>
 
 #define RFM95_CS 16
 #define RFM95_INT 21
 #define RFM95_RST 17
-
-
-// LoRa frequency (must match receiver)
 #define RF95_FREQ 915.0
-// Create a singleton instance of the radio driver
+
 RH_RF95 rf95(RFM95_CS, RFM95_INT);
 
-// Initializes LoRa-related pins
+// Volatile flag set by hardware interrupt when packet arrives
+volatile bool packetReceived = false;
+
+// Interrupt Service Routine - runs immediately when DIO0 goes high
+void onLoraPacket() {
+  packetReceived = true;
+}
+
 void initialiseLoraPins() {
   pinMode(RFM95_RST, OUTPUT);
   digitalWrite(RFM95_RST, HIGH);
+  // Attach interrupt for non-blocking receive
+  attachInterrupt(digitalPinToInterrupt(RFM95_INT), onLoraPacket, RISING);
 }
 
-// Performs a hardware reset of the LoRa radio
 void resetRadio() {
   digitalWrite(RFM95_RST, LOW);
   delay(10);
@@ -40,128 +34,71 @@ void resetRadio() {
   delay(10);
 }
 
-// Initializes the LoRa radio module
 void initialiseRadio() {
   while (!rf95.init()) {
-    if (DEBUG) {
-    Serial.println("LoRa radio init failed");
-    Serial.println("Uncomment '#define SERIAL_DEBUG' in RH_RF95.cpp for detailed debug info");
-    }
-    while (1)
-      ;  // Halt execution
+    if (DEBUG) Serial.println("LoRa radio init failed");
+    while (1);
   }
-  if (DEBUG) {
-  Serial.println("LoRa radio init OK!");
-  }
+  if (DEBUG) Serial.println("LoRa radio init OK!");
 }
 
-// Sets the operating frequency of the LoRa radio
 void setRadioFrequency() {
   if (!rf95.setFrequency(RF95_FREQ)) {
-    if (DEBUG) {
-    Serial.println("setFrequency failed");
-    }
-    while (1)
-      ;  // Halt execution
-  }
-  if (DEBUG) {
-  Serial.print("Set Freq to: ");
-  Serial.println(RF95_FREQ);
+    if (DEBUG) Serial.println("setFrequency failed");
+    while (1);
   }
 }
 
-// Sets the transmission power level
 void setRadioPower() {
-  rf95.setTxPower(5, false);  // Power level: 5 dBm, use PA_BOOST pin
+  rf95.setTxPower(5, false);
 }
 
-// --- MODIFIED FUNCTION PROTOTYPE ---
-// Transmits a packet via LoRa
-// Call this function from your main code, e.g. transmitData("test", ROVER_ID);
-void transmitData(const char* radioPacket, const char* roverID);
-
-// Waits for a reply from the receiver
-String waitForReply() {
-  uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];  // Buffer to hold incoming message
-  uint8_t len = sizeof(buf);             // Length of buffer
-  if (DEBUG) {
-    Serial.println("Waiting for reply...");
-  }
-  if (rf95.waitAvailableTimeout(100)) {  // Wait up to 1 second
-    if (rf95.recv(buf, &len)) {
-      if (DEBUG) {
-        Serial.print("Got reply: ");
-
-        Serial.println((char*)buf);
-      }
-      //Serial.print("RSSI: ");
-      //Serial.println(rf95.lastRssi(), DEC);  // Print signal strength
-      String str = (char*)buf;
-      return str;
-    } else {
-      if (DEBUG) {
-        Serial.println("Receive failed");
-      }
-      return "failed";
-    }
-  } else {
+// NON-BLOCKING: Returns received string or empty string if nothing available
+String checkForMessage() {
+  // Only process if interrupt fired OR radio says data is ready
+  if (!packetReceived && !rf95.available()) return "";
+  
+  packetReceived = false; // Reset flag
+  
+  uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
+  uint8_t len = sizeof(buf);
+  
+  if (rf95.recv(buf, &len)) {
     if (DEBUG) {
-      Serial.println("No reply, is there a listener around?");
+      Serial.print("RX: ");
+      Serial.println((char*)buf);
     }
-    return "No Reply";
+    return String((char*)buf);
   }
+  return "";
 }
 
-// Transmits a packet via LoRa
-// Call this function from your main code, e.g. transmitData("test", ROVER_ID);
-void transmitData(const char* radioPacket, const char* roverID) { // MODIFIED to accept roverID
-  digitalWrite(LED_BUILTIN, HIGH);  // Turn on LED to indicate transmission
-  static int16_t packetnum = 0;     // Optional: track packet number
+// Kept for backward compatibility but now non-blocking
+// Returns message if available, otherwise returns "No Reply" immediately
+String waitForReply() {
+  String msg = checkForMessage();
+  if (msg.length() > 0) return msg;
+  return "";
+}
 
-  // const char* roverID = "1"; // REMOVED hardcoded ID
+// Short timeout version - now also non-blocking for seamless integration
+String waitForReplyShort() {
+  return checkForMessage(); 
+}
+
+void transmitData(const char* radioPacket, const char* roverID) {
+  digitalWrite(LED_BUILTIN, HIGH);
+  
   char packetToTx[strlen(roverID) + strlen(radioPacket) + 2];
   strcpy(packetToTx, roverID);
   strcat(packetToTx, ",");
   strcat(packetToTx, radioPacket);
 
-
-  rf95.send((uint8_t*)packetToTx, strlen(packetToTx) + 1);  // Send packet
-  if (DEBUG) {
-    Serial.println("Waiting for packet to complete...");
-  }
-  delay(10);
-  rf95.waitPacketSent();  // Wait until packet is sent
-
-  digitalWrite(LED_BUILTIN, LOW);  // Turn off LED
-}
-
-String waitForReplyShort() {
-  uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];  // Buffer to hold incoming message
-  uint8_t len = sizeof(buf);             // Length of buffer
-  if (DEBUG) {
-    Serial.println("Waiting for reply...");
-  }
-  if (rf95.waitAvailableTimeout(10)) {  // Wait up to 1 second
-    if (rf95.recv(buf, &len)) {
-      if (DEBUG) {
-        Serial.print("Got reply: ");
-
-        Serial.println((char*)buf);
-      }
-      //Serial.print("RSSI: ");
-      //Serial.println(rf95.lastRssi(), DEC);  // Print signal strength
-      String str = (char*)buf;
-      return str;
-    } else {
-      if (DEBUG) {
-        Serial.println("Receive failed");
-      }
-      return "failed";
-    }
-  } else {
-    if (DEBUG) {
-      Serial.println("No reply, is there a listener around?");
-    }
-    return "No Reply";
-  }
+  // Clear any stale RX flag before transmitting
+  packetReceived = false;
+  
+  rf95.send((uint8_t*)packetToTx, strlen(packetToTx) + 1);
+  rf95.waitPacketSent(); // TX must block to ensure completion
+  
+  digitalWrite(LED_BUILTIN, LOW);
 }
