@@ -4,39 +4,20 @@
 #include "hardware/timer.h"
 #include <Wire.h>
 #include "Adafruit_ADT7410.h"
-
-// Feather9x_TX
-// -*- mode: C++ -*-
-// Example sketch showing how to create a simple messaging client (transmitter)
-// with the RH_RF95 class. RH_RF95 class does not provide for addressing or
-// reliability, so you should only use RH_RF95 if you do not need the higher
-// level messaging abilities.
-// It is designed to work with the other example Feather9x_RX
-
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_ST7735.h>
+#include "Adafruit_miniTFTWing.h"
 
 // Set to true to enable Serial comms.
 // set to false to stop all serial comms.
+#define DEBUG false 
 
-
-#define DEBUG false //This makes the device not work until you open the serial monitor, only use when you need to debug
-//otherwise turn off for devices not connected to a computer
-
-
-const int buzzer = 10;  //buzzer to arduino pin 10
-
-// --- NEW CONSTANT DEFINITION ---
-const char *ROVER_ID = "1";
-
-
+// --- ROVER ID DEFINITION ---
+int ROVER_ID = 1;
 
 // Create the ADT7410 temperature sensor object
 Adafruit_ADT7410 tempsensor = Adafruit_ADT7410();
-
-// Board Libraries:
-// https://adafruit.github.io/arduino-board-index/package_adafruit_index.json
-// https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
-
-
 
 #include "comms.h"
 
@@ -46,30 +27,25 @@ Adafruit_NeoPixel pixels(1, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 
 #include <Adafruit_MotorShield.h>
 Adafruit_MotorShield AFMS = Adafruit_MotorShield();
-// Select which 'port' M1, M2, M3 or M4. In this case, M1
-Adafruit_DCMotor *motorLeft = AFMS.getMotor(1); //testing this not final
+Adafruit_DCMotor *motorLeft = AFMS.getMotor(1); 
 Adafruit_DCMotor *motorBackLeft = AFMS.getMotor(2);
 Adafruit_DCMotor *motorBackRight = AFMS.getMotor(3);
-Adafruit_DCMotor *motorRight = AFMS.getMotor(4); //testing this not final
+Adafruit_DCMotor *motorRight = AFMS.getMotor(4); 
+
+// TFT Wing Objects & Pins
+Adafruit_miniTFTWing ss;
+#define TFT_RST -1  // Uses seesaw for reset
+#define TFT_CS 5
+#define TFT_DC 6
+Adafruit_ST7735 tft_7735 = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
+Adafruit_ST77xx *tft = NULL;
 
 String cachedMessage = "";
 int cachedRssi = 0;
-bool currentlyRoaming = true;
+bool currentlyRoaming = false;
 
-// Command definitions
-String test_command = String(ROVER_ID) + ",test";
-String forward_command = String(ROVER_ID) + ",forward";
-String right_command = String(ROVER_ID) + ",right";
-String start_command = String(ROVER_ID) + ",start";
-String left_command = String(ROVER_ID) + ",left";
-String stop_command = String(ROVER_ID) + ",stop";
-String beep_command = String(ROVER_ID) + ",beep";
-String backward_command = String(ROVER_ID) + ",backward";
-String autonomous_command = String(ROVER_ID) + ",autonomousToggle";
-
-#define TRIG_PIN 5
-#define ECHO_PIN 6
-#define SPEED_OF_SOUND_CM_US 0.0343
+#define TRIG_PIN 10
+#define ECHO_PIN 13
 
 unsigned long startTime;
 
@@ -78,8 +54,27 @@ void initialiseTemperatureMotionWing() {
     if (DEBUG) {
       Serial.println("Couldn't find ADT7410!");
     }
-    while (1)
-      ;
+    while (1);
+  }
+}
+
+void initialiseTFT() {
+  if (!ss.begin()) {
+    if (DEBUG) {
+      Serial.println("seesaw couldn't be found!");
+    }
+    while (1);
+  }
+
+  ss.tftReset();                          // Reset the display
+  ss.setBacklight(TFTWING_BACKLIGHT_ON);  // Turn on backlight
+  tft_7735.initR(INITR_MINI160x80);       // Initialize ST7735S mini display
+  tft = &tft_7735;
+  tft->setRotation(3);                    // Landscape orientation
+  tft->fillScreen(ST77XX_BLACK);
+
+  if (DEBUG) {
+    Serial.println("TFT initialized");
   }
 }
 
@@ -90,25 +85,17 @@ void initialiseSerial() {
   Serial.println("Feather LoRa TX Test!");
 }
 
-void initialiseBuzzer() {
-
-  pinMode(buzzer, OUTPUT);  // Set buzzer - pin 9 as an output
-}
-
 void initialiseMotorShield() {
-  if (!AFMS.begin()) {  // create with the default frequency 1.6KHz
-    // if (!AFMS.begin(1000)) {  // OR with a different frequency, say 1KHz
+  if (!AFMS.begin()) {  
     if (DEBUG) {
       Serial.println("Could not find Motor Shield. Check wiring.");
     }
-    while (1)
-      ;
+    while (1);
   }
   if (DEBUG) {
     Serial.println("Motor Shield found.");
   }
 }
-
 
 void transmitTemperature() {
   float c = tempsensor.readTempC();
@@ -120,71 +107,64 @@ void transmitTemperature() {
     Serial.print(f);
     Serial.println("*F");
   }
-  const char *roverID = "1";
+  
+  // Convert ROVER_ID to char string dynamically
+  char roverIDStr[10];
+  snprintf(roverIDStr, sizeof(roverIDStr), "%d", ROVER_ID);
+
   char packetBuffer[20];  // Buffer to hold the final packet
-  const char *packetToTx;
+  snprintf(packetBuffer, sizeof(packetBuffer), "%s,%.1f", roverIDStr, c);
 
-
-  // Format the string into packetBuffer
-  snprintf(packetBuffer, sizeof(packetBuffer), "%s,%.1f", roverID, c);
-
-  // Assign the formatted string to packetToTx
-  packetToTx = packetBuffer;
-
-
-  transmitData(packetToTx, ROVER_ID);  // UPDATED CALL
+  transmitData(packetBuffer, String(ROVER_ID).c_str());  
 }
 
 void commandTest() {
   if (DEBUG) {
     Serial.println("Command: test");
   }
-  pixels.clear();  // Set all pixel colors to 'off'
+  pixels.clear();  
   pixels.setPixelColor(0, pixels.Color(150, 0, 0));
-  pixels.show();  // Send the updated pixel colors to the hardware.
+  pixels.show();  
   delay(1000);
   pixels.setPixelColor(0, pixels.Color(0, 150, 0));
-  pixels.show();  // Send the updated pixel colors to the hardware.
+  pixels.show();  
   delay(1000);
   pixels.setPixelColor(0, pixels.Color(0, 0, 150));
-  pixels.show();  // Send the updated pixel colors to the hardware.
+  pixels.show();  
   delay(1000);
-  pixels.clear();  // Set all pixel colors to 'off'
+  pixels.clear();  
   pixels.show();
 }
 
 void commandForward() {
   motorLeft->run(FORWARD);
   motorRight->run(FORWARD);
-  motorBackLeft->run(FORWARD); //testing this not final
-  motorBackRight->run(FORWARD); //testing this not final
+  motorBackLeft->run(FORWARD); 
+  motorBackRight->run(FORWARD); 
 }
 
 void commandBackward() {
   motorLeft->run(BACKWARD);
   motorRight->run(BACKWARD);
-  motorBackLeft->run(BACKWARD); //testing this not final
-  motorBackRight->run(BACKWARD); //testing this not final
+  motorBackLeft->run(BACKWARD); 
+  motorBackRight->run(BACKWARD); 
 }
-
 
 void commandRight() {
   motorLeft->run(FORWARD);
   motorRight->run(BACKWARD);
-  motorBackLeft->run(FORWARD); //testing this not final
-  motorBackRight->run(BACKWARD); //testing this not final
+  motorBackLeft->run(FORWARD); 
+  motorBackRight->run(FORWARD); 
 }
-
 
 void commandLeft() {
   motorLeft->run(BACKWARD);
   motorRight->run(FORWARD);
-  motorBackLeft->run(BACKWARD); //testing this not final
-  motorBackRight->run(FORWARD); //testing this not final
+  motorBackLeft->run(BACKWARD); 
+  motorBackRight->run(FORWARD); 
 }
 
 void commandStop() {
-  // Stops the motors
   motorLeft->run(RELEASE);
   motorRight->run(RELEASE);
   motorBackLeft->run(RELEASE);
@@ -195,64 +175,56 @@ void commandStart() {
   // to be implemented later.
 }
 
-void commandBeep() {
-
-  tone(buzzer, 1000);  // Send 1KHz sound signal...
-  delay(100);          // ...for 1 sec
-  noTone(buzzer);      // Stop sound...
+float getDistance3V3(int trig, int echo) {
+  digitalWrite(trig, LOW);
+  delayMicroseconds(2);
+  
+  digitalWrite(trig, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trig, LOW);
+  
+  long duration = pulseIn(echo, HIGH, 24000); 
+  
+  if (duration == 0) {
+    return -1.0; 
+  }
+  
+  float distanceCm = (duration * 0.0343) / 2.0;
+  return distanceCm;
 }
-
-
-float get_distance_cm() {
-    // 1. Ensure the trigger pin is low to start clean
-    gpio_put(TRIG_PIN, 0);
-    sleep_us(2);
-
-    // 2. Send a 10-microsecond high pulse to trigger the sensor
-    gpio_put(TRIG_PIN, 1);
-    sleep_us(10);
-    gpio_put(TRIG_PIN, 0);
-
-    // 3. Wait for the Echo pin to go HIGH (with a 30ms timeout to prevent hanging)
-    uint32_t start_wait = time_us_32();
-    while (gpio_get(ECHO_PIN) == 0) {
-        if (time_us_32() - start_wait > 30000) { 
-            return -1.0f; // Timeout if no echo signal returns
-        }
-    }
-    uint32_t pulse_start = time_us_32();
-
-    // 4. Wait for the Echo pin to go LOW again
-    start_wait = time_us_32();
-    while (gpio_get(ECHO_PIN) == 1) {
-        if (time_us_32() - start_wait > 30000) { 
-            return -1.0f; // Timeout if echo stays high too long
-        }
-    }
-    uint32_t pulse_end = time_us_32();
-
-    // 5. Calculate time elapsed in microseconds
-    uint32_t pulse_duration = pulse_end - pulse_start;
-
-    // 6. Calculate total round-trip distance, then divide by 2
-    float distance = (pulse_duration * SPEED_OF_SOUND_CM_US) / 2.0f;
-    return distance;
-}
-
-
 
 void roamTick(){
   commandStop();
-  float currentDistance = get_distance_cm();
-  transmitData(String(currentDistance).c_str(), String(100).c_str());
-  if (currentDistance <= 8.0){
-    currentlyRoaming = false;
-    return;
+  delay(100);
+  float currentDistance = getDistance3V3(TRIG_PIN, ECHO_PIN);
+  
+  if (currentDistance > 0.0 && currentDistance <= 12.0){
+    long randomDir = random(2);
+    if (randomDir == 1){
+      commandLeft();
+      delay(4000);
+    } else {
+      commandRight();
+      delay(4000);
+    }
+    commandForward();
   }
+  
   commandForward();
-  delay(500);
+  delay(400);
 }
 
+void drawScreen(){
+
+
+  tft->fillScreen(ST77XX_BLACK);
+  tft->setCursor(0, 0);
+  tft->print("Rover ID: ");
+  tft->print(String(ROVER_ID));
+  tft->println("");
+  tft->print("Auto Roam: ");
+  tft->print(String(currentlyRoaming));
+}
 
 void setup() {
   initialiseLoraPins();
@@ -264,93 +236,114 @@ void setup() {
   setRadioFrequency();
   setRadioPower();
   initialiseMotorShield();
-  initialiseBuzzer();
+  initialiseTFT();
 
   pinMode(LED_BUILTIN, OUTPUT);
+  pixels.begin();             
+  pixels.setBrightness(100);  
 
-  // Neopixel
-  // pinMode(PIN_NEOPIXEL, OUTPUT);
-  pixels.begin();             // INITIALIZE NeoPixel strip object (REQUIRED)
-  pixels.setBrightness(100);  // Set brightness (0-255)
-
-  //set speed of motors once, this could be variable to add configurable speed
-  motorLeft->setSpeed(200);
-  motorRight->setSpeed(200);
-  motorBackLeft->setSpeed(200); 
-  motorBackRight->setSpeed(200); 
-
+  motorLeft->setSpeed(100);
+  motorRight->setSpeed(100);
+  motorBackLeft->setSpeed(100); 
+  motorBackRight->setSpeed(100); 
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  
+  tft->fillScreen(ST77XX_BLACK);
+  tft->setCursor(0, 0);
+  tft->setTextColor(ST77XX_WHITE);
+  tft->setTextSize(2);
+  
   startTime = millis();
+  tft->fillScreen(ST77XX_BLACK);
+  tft->setCursor(0, 0);
+  drawScreen();
 }
-
-
 
 void loop() {
   cachedMessage = waitForReply();
-  // readGPS();
-  // transmitData("test");
   unsigned long currentTime = millis();
   unsigned long elapsedTime = currentTime - startTime;
 
   if (DEBUG) {
     Serial.println(cachedMessage);
   }
+
+  // Generate command strings dynamically based on current ROVER_ID
+  String test_command = String(ROVER_ID) + ",test";
+  String forward_command = String(ROVER_ID) + ",forward";
+  String right_command = String(ROVER_ID) + ",right";
+  String start_command = String(ROVER_ID) + ",start";
+  String left_command = String(ROVER_ID) + ",left";
+  String stop_command = String(ROVER_ID) + ",stop";
+  String beep_command = String(ROVER_ID) + ",beep";
+  String backward_command = String(ROVER_ID) + ",backward";
+  String autonomous_command = String(ROVER_ID) + ",autoDrive";
+
   if (cachedMessage == String(ROVER_ID) + ",Ping Devices"){
-    transmitData("Rover", ROVER_ID);
+    transmitData("Rover", String(ROVER_ID).c_str());
   }
 
-  if (cachedMessage == autonomous_command) {  // UPDATED TO USE ROVER_ID
+  if (cachedMessage == autonomous_command) {  
     currentlyRoaming = !currentlyRoaming;
+    cachedMessage = "";
   }
+  uint32_t buttons = ss.readButtons();
+
+  // Debounce delay can be added if buttons are too sensitive
+  if (!(buttons & TFTWING_BUTTON_UP)) {
+    ROVER_ID += 1;
+    drawScreen();
+    delay(200); 
+  }  
+
+  if (!(buttons & TFTWING_BUTTON_DOWN)) {
+    
+    ROVER_ID -= 1;
+    drawScreen();
+    delay(200);
+  }  
+  
 
   if (currentlyRoaming == true){
     roamTick();
+    startTime = currentTime; 
     return;
   }
 
-  if (cachedMessage == test_command) {  // UPDATED TO USE ROVER_ID
+  if (cachedMessage == test_command) {  
     commandTest();
     startTime = currentTime; 
   }
-  else if (cachedMessage == forward_command) {  // UPDATED TO USE ROVER_ID
+  else if (cachedMessage == forward_command) {  
     commandForward();
     startTime = currentTime; 
   }
-  else if (cachedMessage == right_command) {  // UPDATED TO USE ROVER_ID
+  else if (cachedMessage == right_command) {  
     commandRight();
     startTime = currentTime; 
   }
-  else if (cachedMessage == start_command) {  // UPDATED TO USE ROVER_ID
+  else if (cachedMessage == start_command) {  
     commandStart();
     startTime = currentTime; 
   }
-  else if (cachedMessage == left_command) {  // UPDATED TO USE ROVER_ID
+  else if (cachedMessage == left_command) {  
     commandLeft();
     startTime = currentTime; 
   }
-  else if (cachedMessage == beep_command) {  // UPDATED TO USE ROVER_ID
-    commandBeep();
-    startTime = currentTime; 
-  }
-  else if (cachedMessage == backward_command) {  // UPDATED TO USE ROVER_ID
+  else if (cachedMessage == backward_command) {  
     commandBackward();
     startTime = currentTime; 
   }
-    // This is suppose to stop the rover if nothing has been recieved for 1 seconds, all checks should fail meaning no valid command up until this point
   else if (elapsedTime >= 5000){
     commandStop();
     startTime = currentTime; 
   }
 
-  // Always check if we need to stop as a safety measure
   if (cachedMessage == stop_command) {  
     commandStop();
   }
 
-
-  
-
-
-  
   // transmitTemperature();
   delay(100);
 }
