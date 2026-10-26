@@ -118,6 +118,29 @@ void transmitTemperature() {
   transmitData(packetBuffer, String(ROVER_ID).c_str());  
 }
 
+char test_command[16];
+char forward_command[16];
+char right_command[16];
+char start_command[16];
+char left_command[16];
+char stop_command[16];
+char beep_command[16];
+char backward_command[16];
+char autonomous_command[16];
+
+// Helper function to update commands
+void updateCommands() {
+  snprintf(test_command, sizeof(test_command), "%d,test", ROVER_ID);
+  snprintf(forward_command, sizeof(forward_command), "%d,forward", ROVER_ID);
+  snprintf(right_command, sizeof(right_command), "%d,right", ROVER_ID);
+  snprintf(start_command, sizeof(start_command), "%d,start", ROVER_ID);
+  snprintf(left_command, sizeof(left_command), "%d,left", ROVER_ID);
+  snprintf(stop_command, sizeof(stop_command), "%d,stop", ROVER_ID);
+  snprintf(beep_command, sizeof(beep_command), "%d,beep", ROVER_ID);
+  snprintf(backward_command, sizeof(backward_command), "%d,backward", ROVER_ID);
+  snprintf(autonomous_command, sizeof(autonomous_command), "%d,autoDrive", ROVER_ID);
+}
+
 void commandTest() {
   if (DEBUG) {
     Serial.println("Command: test");
@@ -138,29 +161,41 @@ void commandTest() {
 
 void commandForward() {
   motorLeft->run(FORWARD);
-  motorRight->run(FORWARD);
+  delay(30); // Stagger start to reduce current spike
   motorBackLeft->run(FORWARD); 
+  delay(30);
+  motorRight->run(FORWARD);
+  delay(30);
   motorBackRight->run(FORWARD); 
 }
 
 void commandBackward() {
   motorLeft->run(BACKWARD);
-  motorRight->run(BACKWARD);
+  delay(30);
   motorBackLeft->run(BACKWARD); 
+  delay(30);
+  motorRight->run(BACKWARD);
+  delay(30);
   motorBackRight->run(BACKWARD); 
 }
 
 void commandRight() {
   motorLeft->run(FORWARD);
-  motorRight->run(BACKWARD);
+  delay(30);
   motorBackLeft->run(FORWARD); 
-  motorBackRight->run(FORWARD); 
+  delay(30);
+  motorRight->run(BACKWARD); // Right side goes backward to turn
+  delay(30);
+  motorBackRight->run(BACKWARD); 
 }
 
 void commandLeft() {
   motorLeft->run(BACKWARD);
-  motorRight->run(FORWARD);
+  delay(30);
   motorBackLeft->run(BACKWARD); 
+  delay(30);
+  motorRight->run(FORWARD);
+  delay(30);
   motorBackRight->run(FORWARD); 
 }
 
@@ -242,10 +277,10 @@ void setup() {
   pixels.begin();             
   pixels.setBrightness(100);  
 
-  motorLeft->setSpeed(100);
-  motorRight->setSpeed(100);
-  motorBackLeft->setSpeed(100); 
-  motorBackRight->setSpeed(100); 
+  motorLeft->setSpeed(125);
+  motorRight->setSpeed(125);
+  motorBackLeft->setSpeed(125); 
+  motorBackRight->setSpeed(125); 
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
   
@@ -269,16 +304,6 @@ void loop() {
     Serial.println(cachedMessage);
   }
 
-  // Generate command strings dynamically based on current ROVER_ID
-  String test_command = String(ROVER_ID) + ",test";
-  String forward_command = String(ROVER_ID) + ",forward";
-  String right_command = String(ROVER_ID) + ",right";
-  String start_command = String(ROVER_ID) + ",start";
-  String left_command = String(ROVER_ID) + ",left";
-  String stop_command = String(ROVER_ID) + ",stop";
-  String beep_command = String(ROVER_ID) + ",beep";
-  String backward_command = String(ROVER_ID) + ",backward";
-  String autonomous_command = String(ROVER_ID) + ",autoDrive";
 
   if (cachedMessage == String(ROVER_ID) + ",Ping Devices"){
     transmitData("Rover", String(ROVER_ID).c_str());
@@ -293,16 +318,17 @@ void loop() {
   // Debounce delay can be added if buttons are too sensitive
   if (!(buttons & TFTWING_BUTTON_UP)) {
     ROVER_ID += 1;
+    updateCommands(); // Update the command strings
     drawScreen();
     delay(200); 
   }  
 
   if (!(buttons & TFTWING_BUTTON_DOWN)) {
-    
     ROVER_ID -= 1;
+    updateCommands(); // Update the command strings
     drawScreen();
     delay(200);
-  }  
+  }   
   
 
   if (currentlyRoaming == true){
