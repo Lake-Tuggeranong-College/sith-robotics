@@ -141,16 +141,30 @@ void buttonTransmit() {
 
   color = ST77XX_BLACK;
   if (!(buttons & TFTWING_BUTTON_SELECT)) {
-    currentRoverID++;
-    if (currentRoverID > 5) currentRoverID = 1;
-    color = ST77XX_RED;
-    transmitData("IDCycle", String(currentRoverID).c_str());
-    hasSentStop = false;
-    showID = true;
-    idDisplayStart = millis();
-    delay(300);
+    // Serial.println("SELECT");
+    // currentRoverID++;
+    // if (currentRoverID > 5) currentRoverID = 1;
+    // color = ST77XX_RED;
+    // //transmitData("IDCycle", ROVER_ID);
+    // transmitData("IDCycle", String(currentRoverID).c_str());
+    // hasSentStop = false;
+    // delay(300);
+
+
   }
   tft->fillCircle(135, 40, 7, color);
+}
+
+void handleIDDisplay() {
+  if (currentMenu == "checkID") {
+    // Draw small background (same size vibe as your circles)
+    tft->fillRect(70, 20, 60, 80, ST77XX_BLACK);
+
+    tft->setCursor(80, 32);
+    tft->setTextColor(ST77XX_WHITE);
+    tft->setTextSize(5);
+    tft->print(currentRoverID);
+  }
 }
 
 #define ITEMS_PER_PAGE 3
@@ -299,6 +313,31 @@ void pingMenuLogic(){
   currentMenu = "mainMenu";
 }
 
+void checkIDMenuLogic() {
+  uint32_t buttons = ss.readButtons();
+  
+  if (!(buttons & TFTWING_BUTTON_A)) {
+    currentRoverID++;
+
+    if (currentRoverID > 5) {
+      currentRoverID = 1;
+    }
+
+    tft->fillScreen(ST77XX_BLACK);
+    delay(300);
+  }
+
+
+  if (!(buttons & TFTWING_BUTTON_B)) {
+    currentMenu = "mainMenu";
+    tft->fillScreen(ST77XX_BLACK);
+
+    delay(300);
+  }
+
+  handleIDDisplay();
+}
+
 void drawMenu(){
   unsigned long currentTime = millis();
   unsigned long elapsedTime = currentTime - startTime;
@@ -327,6 +366,9 @@ void drawMenu(){
     pingMenuLogic();
   }
 
+  if (currentMenu == "checkID") {
+    checkIDMenuLogic();
+
   if (currentMenu == "autoDrive"){
     autoDriveLogic();
   }
@@ -346,6 +388,7 @@ void handleIDDisplay() {
       showID = false;
     }
   }
+  //This is the end of the main menu functionality
 }
 
 void checkForPings(){
