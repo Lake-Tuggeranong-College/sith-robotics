@@ -154,7 +154,7 @@ void commandRight() {
   motorLeft->run(FORWARD);
   motorRight->run(BACKWARD);
   motorBackLeft->run(FORWARD); 
-  motorBackRight->run(FORWARD); 
+  motorBackRight->run(BACKWARD); 
 }
 
 void commandLeft() {
