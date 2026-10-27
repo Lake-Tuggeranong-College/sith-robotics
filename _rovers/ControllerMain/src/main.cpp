@@ -15,10 +15,6 @@
 #define DEBUG false //This makes the device not work until you open the serial monitor, only use when you need to debug
 //otherwise turn off for devices not connected to a computer
 
-
-// --- NEW CONSTANT DEFINITION ---
-const char* ROVER_ID = "1"; // Define the constant ID here (redundant for now)
-
 // Board Libraries:
 // https://adafruit.github.io/arduino-board-index/package_adafruit_index.json
 // https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
@@ -26,8 +22,6 @@ const char* ROVER_ID = "1"; // Define the constant ID here (redundant for now)
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
 #include "Adafruit_miniTFTWing.h"
-
-
 
 Adafruit_miniTFTWing ss;
 #define TFT_RST -1  // we use the seesaw for resetting to save a pin
@@ -47,7 +41,10 @@ int cachedRssi = 0;
 // We cache the message so multiple functions in code can read it
 
 #include "comms.h"
-int currentRoverID = 1; //This is a debug command; remove if its not working.
+int currentRoverID = 1; // Active rover ID being controlled/queried
+bool showID = false; 
+unsigned long idDisplayStart = 0;
+const int idDisplayDuration = 700; // ms 
 
 void initialiseTFT() {
   if (!ss.begin()) {
@@ -63,16 +60,14 @@ void initialiseTFT() {
   tft_7735.initR(INITR_MINI160x80);       // initialize a ST7735S chip, mini display
   tft = &tft_7735;
   tft->setRotation(3);
-    tft->fillScreen(ST77XX_BLACK);
+  tft->fillScreen(ST77XX_BLACK);
 
   if (DEBUG) {
     Serial.println("TFT initialized");
   }
 }
 
-
 // Initialises the Serial Monitor
-// Waits for Serial to be ready before continuing
 void initialiseSerial() {
   Serial.begin(9600);                  // Start serial at 9600 baud
   while (!Serial) delay(1);            // Wait for Serial to be ready
@@ -80,99 +75,69 @@ void initialiseSerial() {
   Serial.println("Feather LoRa TX!");  // Print startup message
 }
 
-// This function will run super fast, so that it can stop as soon as you stop pressing any buttons
-// The movement function will run slower as to not spam the lora network
 void transmitStopCommand(){
   uint32_t buttons = ss.readButtons();
   
-  if (buttons == 3740 & hasSentStop == false){
+  if (buttons == 3740 && hasSentStop == false){
     for (int i = 0; i <= 2; i++){ 
-    //transmitData("stop", ROVER_ID);
-    transmitData("stop", String(currentRoverID).c_str());
-    delay(20);
-    transmitData("stop", String(currentRoverID).c_str());
-  }
+      transmitData("stop", String(currentRoverID).c_str());
+      delay(20);
+      transmitData("stop", String(currentRoverID).c_str());
+    }
     hasSentStop = true;
     return;
   }
-
 }
 
 void buttonTransmit() {
   uint32_t buttons = ss.readButtons();
-
   uint16_t color;
-
-
-  // 3740 is the value that is printed when no buttons are pressed, the number is changed when buttons are pressed.
-  // not sure exactly what the number means yet, to be investigated
 
   color = ST77XX_BLACK;
   if (!(buttons & TFTWING_BUTTON_LEFT)) {
-    // Serial.println("LEFT");
     color = ST77XX_WHITE;
-    //transmitData("left", ROVER_ID);
     transmitData("left", String(currentRoverID).c_str());
     hasSentStop = false;
   }
-
   tft->fillTriangle(150, 30, 150, 50, 160, 40, color);
-
 
   color = ST77XX_BLACK;
   if (!(buttons & TFTWING_BUTTON_RIGHT)) {
-    // Serial.println("RIGHT");
     color = ST77XX_WHITE;
-    //transmitData("right", ROVER_ID);
     transmitData("right", String(currentRoverID).c_str());
     hasSentStop = false;
   }
-
   tft->fillTriangle(120, 30, 120, 50, 110, 40, color);
-
 
   color = ST77XX_BLACK;
   if (!(buttons & TFTWING_BUTTON_DOWN)) {
-    // Serial.println("DOWN");
     color = ST77XX_WHITE;
-    //transmitData("backward", ROVER_ID);
     transmitData("backward", String(currentRoverID).c_str());
     hasSentStop = false;
   }
-
   tft->fillTriangle(125, 26, 145, 26, 135, 16, color);
-
 
   color = ST77XX_BLACK;
   if (!(buttons & TFTWING_BUTTON_UP)) {
-    // Serial.println("UP");
     color = ST77XX_WHITE;
-    //transmitData("forward", ROVER_ID);
     transmitData("forward", String(currentRoverID).c_str());
     hasSentStop = false;
   }
-
   tft->fillTriangle(125, 53, 145, 53, 135, 63, color);
-
 
   color = ST77XX_BLACK;
   if (!(buttons & TFTWING_BUTTON_A)) {
-    // Serial.println("A");
     color = ST7735_GREEN;
-    //transmitData("beep", ROVER_ID);
     transmitData("beep", String(currentRoverID).c_str());
     hasSentStop = false;
   }
-
   tft->fillCircle(30, 57, 10, color);
-
 
   color = ST77XX_BLACK;
   if (!(buttons & TFTWING_BUTTON_B)) {
-    // Serial.println("B");
     currentMenu = "mainMenu";
+    tft->fillScreen(ST77XX_BLACK);
   }
-
 
   color = ST77XX_BLACK;
   if (!(buttons & TFTWING_BUTTON_SELECT)) {
@@ -187,9 +152,7 @@ void buttonTransmit() {
 
 
   }
-
   tft->fillCircle(135, 40, 7, color);
-  
 }
 
 void handleIDDisplay() {
@@ -207,18 +170,16 @@ void handleIDDisplay() {
 #define ITEMS_PER_PAGE 3
 #define ITEM_HEIGHT   20
 
-// Add/remove menu items here - everything else auto-adjusts
 const char* mainMenuItems[] = {
   "Driving",      // 0
-  "Ping ID",   // 1
+  "Ping ID",      // 1
   "Receive",      // 2
-  "Check ID",      // 3
-  "HEEELP",       // 4
+  "Check ID",     // 3 -> Now opens ID Selection Menu
+  "Auto Drive",   // 4
   "WOOOAH"        // 5
 };
 #define MAIN_MENU_COUNT (sizeof(mainMenuItems) / sizeof(mainMenuItems[0]))
 
-// Helper: draw a single menu item at screen position
 void drawMenuItem(int menuIndex, int screenRow, bool isSelected) {
   tft->setCursor(0, screenRow * ITEM_HEIGHT);
   tft->setTextSize(2);
@@ -228,58 +189,85 @@ void drawMenuItem(int menuIndex, int screenRow, bool isSelected) {
 
 void mainMenuLogic(){
   uint32_t buttons = ss.readButtons();
-  uint16_t color;
   
-  // Clear screen once per frame (reduces flicker vs. clearing on every button press)
-  
-  // Calculate which items to show (auto-paging)
   int currentPageStart = (selectedOption / ITEMS_PER_PAGE) * ITEMS_PER_PAGE;
   int currentPageEnd = currentPageStart + ITEMS_PER_PAGE;
   if (currentPageEnd > MAIN_MENU_COUNT) currentPageEnd = MAIN_MENU_COUNT;
   
-  // Draw visible items using a loop (no more repetitive code!)
   for (int i = currentPageStart; i < currentPageEnd; i++) {
-    int screenRow = i - currentPageStart; // 0, 1, or 2
+    int screenRow = i - currentPageStart; 
     drawMenuItem(i, screenRow, (i == selectedOption));
   }
-
   
   // Scroll UP
   if (!(buttons & TFTWING_BUTTON_UP) && selectedOption > 0) {
     tft->fillScreen(ST77XX_BLACK);
     selectedOption--;
+    delay(150); // slight debounce
   }
   
   // Scroll DOWN  
   if (!(buttons & TFTWING_BUTTON_DOWN) && selectedOption < MAIN_MENU_COUNT - 1) {
     tft->fillScreen(ST77XX_BLACK);
     selectedOption++;
+    delay(150); // slight debounce
   }
   
   // Select option (A button)
   if (!(buttons & TFTWING_BUTTON_A)) {
     switch(selectedOption) {
-      case 0: currentMenu = "driving";  tft->fillScreen(ST77XX_BLACK); break;
-      case 1: currentMenu = "pingMenu"; tft->fillScreen(ST77XX_BLACK); break;              // Exit menu
-      case 2: currentMenu = "receiver"; tft->fillScreen(ST77XX_BLACK); break;
-      // Add more cases here for options 3, 4, 5, etc.
-      case 3: currentMenu = "checkID";
-      tft->fillScreen(ST77XX_BLACK);
-      while (!(ss.readButtons() & TFTWING_BUTTON_A)) {
-        delay(10);
-      }
-      break;
-      // case 4: /* your code */ break;
-      // case 5: /* your code */ break;
-      default: break; // Safety fallback
+      case 0: currentMenu = "driving";   tft->fillScreen(ST77XX_BLACK); break;
+      case 1: currentMenu = "pingMenu";  tft->fillScreen(ST77XX_BLACK); break;              
+      case 2: currentMenu = "receiver";  tft->fillScreen(ST77XX_BLACK); break;
+      case 3: currentMenu = "idMenu";    tft->fillScreen(ST77XX_BLACK); break; // ID Menu
+      case 4: currentMenu = "autoDrive"; tft->fillScreen(ST77XX_BLACK); break;
+      default: break; 
     }
+    delay(200);
   }
 }
 
+// --- NEW ID CONFIGURATION MENU LOGIC ---
+void idMenuLogic() {
+  uint32_t buttons = ss.readButtons();
+
+  // Change Rover ID with Up and Down buttons
+  if (!(buttons & TFTWING_BUTTON_UP)) {
+    currentRoverID++;
+    if (currentRoverID > 5) currentRoverID = 5; // Max ID limit
+    tft->fillScreen(ST77XX_BLACK);
+    delay(200); // debounce
+  }
+
+  if (!(buttons & TFTWING_BUTTON_DOWN)) {
+    currentRoverID--;
+    if (currentRoverID < 1) currentRoverID = 1; // Min ID limit
+    tft->fillScreen(ST77XX_BLACK);
+    delay(200); // debounce
+  }
+
+  // Return to Main Menu with B button
+  if (!(buttons & TFTWING_BUTTON_B)) {
+    tft->fillScreen(ST77XX_BLACK);
+    currentMenu = "mainMenu";
+    delay(200);
+  }
+
+  // Render ID menu content
+  tft->setCursor(0, 0);
+  tft->setTextSize(2);
+  tft->setTextColor(ST77XX_WHITE);
+  tft->println("Select ID:");
+  tft->print("ID: ");
+  tft->println(currentRoverID);
+  tft->println("");
+  tft->setTextSize(1);
+  tft->println("UP/DOWN: Change");
+  tft->println("B: Back");
+}
 
 void receiverMenuLogic(){
   uint32_t buttons = ss.readButtons();
-  uint16_t color;
   tft->setCursor(0, 0);
   tft->setTextSize(1);
 
@@ -290,17 +278,25 @@ void receiverMenuLogic(){
   }
   
   if (!(buttons & TFTWING_BUTTON_B)) {
-    // Serial.println("B");
     tft->fillScreen(ST77XX_BLACK);
     currentMenu = "mainMenu";
   }
+}
+
+void autoDriveLogic(){
+  tft->setCursor(0, 0);
+  tft->print("Auto drive sent!");
+  transmitData("autoDrive", String(currentRoverID).c_str());
+  delay(1000);
+  tft->fillScreen(ST77XX_BLACK);
+  currentMenu = "mainMenu"; 
 }
 
 void pingMenuLogic(){
   tft->setCursor(0, 0);
   tft->setTextSize(1);
   for (int i = 0; i < 3; i++) {
-    transmitData("Ping Devices", ROVER_ID);
+    transmitData("Ping Devices", String(currentRoverID).c_str());
     if(cachedMessage != ""){
       break;
     }
@@ -343,10 +339,9 @@ void checkIDMenuLogic() {
 }
 
 void drawMenu(){
-  //Menu logic where code is ran depending on menu, such as running the driving function when driving the rover
-  //Each menu would have its own function
   unsigned long currentTime = millis();
   unsigned long elapsedTime = currentTime - startTime;
+  
   if (currentMenu == "driving"){
     if (elapsedTime >= 300){
       buttonTransmit();
@@ -359,6 +354,10 @@ void drawMenu(){
     mainMenuLogic();
   }
 
+  if (currentMenu == "idMenu"){
+    idMenuLogic();
+  }
+
   if (currentMenu == "receiver"){
     receiverMenuLogic();
   }
@@ -369,29 +368,46 @@ void drawMenu(){
 
   if (currentMenu == "checkID") {
     checkIDMenuLogic();
+
+  if (currentMenu == "autoDrive"){
+    autoDriveLogic();
+  }
+}
+
+void handleIDDisplay() {
+  if (showID) {
+    tft->fillRect(70, 20, 60, 80, ST77XX_BLACK);
+
+    tft->setCursor(80, 32);
+    tft->setTextColor(ST77XX_WHITE);
+    tft->setTextSize(5);
+    tft->print(currentRoverID);
+
+    if (millis() - idDisplayStart > idDisplayDuration) {
+      tft->fillRect(120, 5, 20, 15, ST77XX_BLACK);
+      showID = false;
+    }
   }
   //This is the end of the main menu functionality
 }
 
 void checkForPings(){
-  if (cachedMessage == String(ROVER_ID) + ",Ping Devices"){
-    transmitData("Controller", ROVER_ID);
+  if (cachedMessage == String(currentRoverID) + ",Ping Devices"){
+    transmitData("Controller", String(currentRoverID).c_str());
   }
-
 }
 
-// Setup function runs once at startup
 void setup() {
-  initialiseLoraPins();  // Configure LoRa module pins
+  initialiseLoraPins();  
   if (DEBUG) {
     initialiseSerial();
-  }// Start serial communication
-  resetRadio();         // Reset the LoRa radio module
-  initialiseRadio();    // Initialise radio settings
-  setRadioFrequency();  // Set operating frequency
-  setRadioPower();      // Set transmission power
+  }
+  resetRadio();         
+  initialiseRadio();    
+  setRadioFrequency();  
+  setRadioPower();      
   initialiseTFT();
-  pinMode(LED_BUILTIN, OUTPUT);  // Set built-in LED pin as output
+  pinMode(LED_BUILTIN, OUTPUT);  
   Serial1.begin(115200);
 
   tft->fillScreen(ST77XX_RED);
@@ -408,7 +424,6 @@ void setup() {
   tft->setTextSize(2);
   tft->println("Welcome To");
   tft->println("SITH OS");
-  //SITH = Super Intelligent Telecoms Home
   tft->setTextSize(1);
   tft->println("");
   tft->println("Super Intelligent Tele Home");
@@ -419,18 +434,9 @@ void setup() {
   Serial1.println("Feather LoRa TX!");
 }
 
-
-// Main loop runs repeatedly after setup
 void loop() {
   cachedMessage = waitForReply();
   cachedRssi = rf95.lastRssi();
-
-  // Uncomment one of the following for debugging transmission
-
-  // debugTransmissionSimple();  // Send a test message
-  // debugTransmissionButton();    // Send message when button is pressed
-  // cycleBasicCommands();
-  
 
   drawMenu();
   checkForPings();
